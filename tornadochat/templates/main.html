@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% include 'menu.html' %}
+
+    {% if not is_forum_page %}
+    {% include 'chat.html' %}
+    {% endif %}
+
+{% endblock %}

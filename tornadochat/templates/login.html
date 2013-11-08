@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% if error %}
+        {{ error }}<br><br>
+    {% endif %}
+    Room users: 
+    {% if room_users %} {{ room_users }} {% else %} room is empty {% endif %}
+    <form method='POST' action=''> {% csrf_token %}
+        <b>Your nickname:</b> <input type='text' name="new_username"> 
+        (Please choose unique and not empty nickname)
+        <br>
+        <input type='submit' value="Join the room">
+    </form>
+{% endblock %}
