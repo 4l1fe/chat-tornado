@@ -1,0 +1,108 @@
+{#{% extends "base.html" %}#}
+
+{#{% block content %}#}
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>
+var ws;
+
+function get_time() {
+    var currentTime = new Date()
+    hours = currentTime.getHours()
+    minutes = currentTime.getMinutes()
+    now_time = '<b>[' + hours + ":" + minutes + '] </b>'
+    return now_time
+};
+
+$(document).ready(function() {
+        ws = new WebSocket("ws://" + location.host + "/websocket/{{room_title}}/{{ user.username }}");
+        ws.onopen = function() {
+            mess = { 'msgtype':'chat', 'msg': {'room':'{{room_title}}', 'username':'{{user.username}}', 'text':'connect'}};
+            ws.send(JSON.stringify(mess));
+        }
+        ws.onmessage = function(event){
+            if (event.data.slice(0, 10) == 'all_users:') {
+                $('#online_users').text(event.data.slice(10));
+            }
+            else if (event.data.slice(0,9) == 'new_user:') {
+                message = event.data.slice(9).trim();
+                $('#online_users').append('<div id="' + message + '">' + message + '</div>').scrollTop($('#online_users').innerHeight());
+            }
+            else if(event.data.slice(0, 12) == 'remove_user:'){
+                var remove_nick = event.data.slice(12).trim();
+                $('#' + remove_nick).remove();
+            }
+            else {
+                $('#chat_text_area').append(get_time() + event.data + '<br />').scrollTop($('#chat_text_area').innerHeight());
+            }
+        }
+        $('#expand').click(function() {
+            $('#whole_chat').slideToggle('slow');
+        });
+    });
+
+$(window).bind('beforeunload', function() {
+    mess = { 'msgtype':'chat', 'msg': {'room':'{{room_title}}', 'username':'{{use.username}}', 'text':'disconnect'}};
+    ws.send(JSON.stringify(mess));
+});
+
+function send_message()
+{
+    var message = document.getElementById('txt_message')
+        if (message.value == '') {
+            alert('You cant send empty message')
+        } else {
+            var json = mess = { 'msgtype':'chat', 'msg': {'room':'{{room_title}}', 'username':'{{user.username}}', 'text':message.value}};
+            ws.send(JSON.stringify(json));
+            message.value = '';
+        }
+}
+
+</script>
+    <div class="row" id="container">
+    <div class="col-md-offset-2 col-md-8">
+
+    <div class="row" style="background-color: rgb(133,133,133)">
+        <div class="col-md-1">
+            <a id="expand" href="#" style="color: #E76600"><strong>ЧАТ</strong></a>
+        </div>
+    </div>
+
+    <div class="row" id="whole_chat" style="border-style:solid;border-width:1px;">
+    <div class="col-md-12">
+
+    <div class="row" style="height:400px">
+        <div class="col-md-8" id="chat_text_area" style="overflow:auto;"></div>
+        <div class="col-md-4" style="overflow:auto;">
+            <div class="row">
+                <div class="col-md-12">
+                    {{ form }}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12" id="online_users" style="border-style: solid;border-width:1px;height:300px;overflow:auto;">
+                </div>
+                <a href="#" class="btn btn-default">Смайлы</a>
+                <a href="#" class="btn btn-default">Настройки</a>
+                <a href="#" class="btn btn-default">Закрыть</a>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-8">
+            <form class="form-horizontal" role="form">
+            <div class="form-group">
+                <input type="text" id='txt_message' class="form-control" name="message" />
+                <input type="submit" class="btn btn-default pull-right" value="Отправить" onclick="send_message();" />
+            </div>
+            </form>
+        </div>
+    </div>
+    </div>
+
+    </div>
+    </div>
+
+    </div>
+    </div>
+{#{% endblock %}#}
+
