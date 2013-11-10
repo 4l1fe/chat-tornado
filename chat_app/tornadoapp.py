@@ -44,56 +44,24 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         decoded_session = session_obj.get_decoded()
         user_id = decoded_session['_auth_user_id']  # _auth_user_id содержит pk объекта django.contrib.auth.models.User
         self.user = CustomUser.objects.get(user__pk=user_id)
-        self.user_current_room = self.user.room.title
         self.user_name = self.user.user.username
 
-        self.connections[self.user_current_room][self.user_name] = self  # добавляю своё соединение в общий словарь.
-        for online_user_name, connection in self.connections[self.user_current_room].items(): # цикл по всем соединениям.
-            self.write_message('new_user:'+online_user_name)  # шлю себе имя каждого онлайн польз из существующих.
-            if online_user_name != self.user_name:  # уведомление в чат всем , коме себя
-                connection.write_message('new_user:'+self.user_name)  # шлю своё имя этому пользователю
-                mess = '{0} joined the room!'.format(self.user_name)
-                connection.write_message(mess)
-
-        room_names = []  # посылаем все существ-ие комнаты с выделением текущей
-        for room_name in self.room_names:
-            if room_name == self.user_current_room:
-                room_name = '{}'.format(room_name)
-            room_names.append(room_name)
-        mess = 'all_rooms:' + ';'.join(room_names)
+        mess = 'all_rooms:' + ';'.join(self.room_names)
         self.write_message(mess)
+
+        self.connections[self.user_name] = self                         # добавляю своё соединение в общий словарь.
+        for online_user_name, connection in self.connections.items():   # цикл по всем соединениям.
+            self.write_message('new_user:'+online_user_name)            # шлю себе имя каждого онлайн польз из существующих.
+            if online_user_name != self.user_name:                      # уведомление в чат всем , кроме себя
+                connection.write_message('new_user:'+self.user_name)    # шлю своё имя этому пользователю
 
     def chat_handler(self, message):
         if message['text'] == 'disconnect':
-            mess = '{0} left the room!'.format(self.user_name)
             mess_del = 'remove_user:{}'.format(self.user_name)
-            for connection in self.connections[self.user_current_room].values():
+            for connection in self.connections.values():
                 connection.write_message(mess_del)
-                connection.write_message(mess)
-            del self.connections[self.user_current_room][self.user_name]
+            del self.connections[self.user_name]
 
-        elif message['text'] == 'change_room':
-            new_room = Room.objects.get(title=message['new_room'])  # узкое место, вдруг кто успеет сделать запрос на удалённую комнату
-            self.user.room = new_room
-            self.user.save()
-
-            mess_del = 'remove_user:{}'.format(self.user_name)
-            for online_user_name, connection in self.connections[self.user_current_room].items():
-                if online_user_name != self.user_name:
-                    connection.write_message(mess_del)
-
-            del self.connections[self.user_current_room][self.user_name]  # переписываю соединение в другую комнату
-            self.user_current_room = new_room.title
-            self.connections[self.user_current_room][self.user_name] = self
-
-            self.write_message('change_room:{}'.format(self.user_current_room))
-            self.write_message('You entered to the {} room'.format(self.user_current_room))
-            for online_user_name, connection in self.connections[self.user_current_room].items():  # цикл по всем соединениям.
-                self.write_message('new_user:'+online_user_name)                                   # шлю себе имя каждого онлайн польз из существующих.
-                if online_user_name != self.user_name:                                             # уведомление в чат всем , кроме себя, что я подключился
-                    connection.write_message('new_user:'+self.user_name)                           # шлю своё имя этому пользователю
-                    mess = '{0} joined the room!'.format(self.user_name)
-                    connection.write_message(mess)
         else:
             room = Room.objects.filter(title=self.user_current_room).get()
             message['text'] = censor_message_text(message['text'])
