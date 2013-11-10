@@ -26,7 +26,7 @@ logger.info(badwords)
 def censor_message_text(text):
     #replace_words = u'хуй', u'пизда', u'блять', u'ебать'
     for word in badwords:
-        text = re.sub(re.escape(word), u'<strong>цензура</strong>', text)
+        text = re.sub(re.escape(word), u'цензура', text)
     return text
 
 
@@ -40,8 +40,8 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         morsel = self.request.cookies['sessionid']  # возвращает объект Morsel.
         sessionid = morsel.value
-        session = Session.objects.get(pk=sessionid)
-        decoded_session = session.get_decoded()
+        session_obj = Session.objects.get(pk=sessionid)
+        decoded_session = session_obj.get_decoded()
         user_id = decoded_session['_auth_user_id']  # _auth_user_id содержит pk объекта django.contrib.auth.models.User
         self.user = CustomUser.objects.get(user__pk=user_id)
         self.user_current_room = self.user.room.title
@@ -58,7 +58,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         room_names = []  # посылаем все существ-ие комнаты с выделением текущей
         for room_name in self.room_names:
             if room_name == self.user_current_room:
-                room_name = '<strong>{}</strong>'.format(room_name)
+                room_name = '{}'.format(room_name)
             room_names.append(room_name)
         mess = 'all_rooms:' + ';'.join(room_names)
         self.write_message(mess)
