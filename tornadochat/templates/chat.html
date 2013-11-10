@@ -35,13 +35,14 @@ function send_message(event) {
 }
 
 function change_room(elem) {
-    var curr_room = $('a.room').has('strong')
-    var curr_room_name = curr_room.text()
-    var new_room_name = $(elem).text();
+    var curr_room = $('#rooms_area div').filter('.active_room')
+    var new_room = $(elem).parent();
+    var new_room_name = new_room.text();
 
-    $('#users_area').empty();
-    $('#chat_area').empty();
-    curr_room.html(curr_room_name);
+    curr_room.removeClass('active_room');
+    $('chat_area div').hide()
+    new_room.addClass('active_room');
+    $('chat_area div').filter('#'+new_room_name).show();
 
     mess = {'msgtype':'chat',
             'msg': {'new_room':new_room_name,
@@ -49,11 +50,11 @@ function change_room(elem) {
     ws.send(JSON.stringify(mess));
 }
 
-$(document).ready(function() {
-    var saved_messages = sessionStorage.getItem('saved_messages')
-    if (saved_messages) {
-        $('#chat_area').append(saved_messages);
-    }
+$(function() {
+{#    var saved_messages = sessionStorage.getItem('saved_messages')#}
+{#    if (saved_messages) {#}
+{#        $('#chat_area').append(saved_messages);#}
+{#    }#}
     ws = new WebSocket("ws://{{ tornado_full_address }}/websocket");
     ws.onmessage = function(event){
         if ('new_user:' == event.data.slice(0,9)) {
@@ -64,19 +65,17 @@ $(document).ready(function() {
             var rooms =  event.data.slice(10).trim().split(';');
             for (var i=0;i<rooms.length;i++) {
                 var room = rooms[i];
-                $('#rooms_area ul').append('<li><a class="room" href="#" onclick="change_room(this)">'+room+'</a></li>');
+                $('#rooms_area').append('<div class="row"><a class="room" href="#'+room+'" onclick="change_room(this)">'+room+'</a></div>');
+                $('#chat_area').append('<div id="'+room+'">'+room+'</div>')
             }
+            var first_room = $('#rooms_area div').first();
+            $('#chat_area div').hide();
+            first_room.addClass('active_room');
+            $('#chat_area div').filter('#'+first_room.text()).show()
         }
         else if ('change_room:' == event.data.slice(0,12)) {
             var new_room_name = event.data.slice(12).trim();
-            $('a.room').each(function() {
-                var room = $(this);
-                if (room.text() == new_room_name) {
-                    room.html('<strong>'+new_room_name+'</strong>');
-                    return false;}
-            })
         }
-
         else if('remove_user:' == event.data.slice(0, 12)){
             var remove_nick = event.data.slice(12).trim();
             $('#'+remove_nick).remove();
@@ -94,46 +93,42 @@ $(document).ready(function() {
 });
 
 $(window).on('beforeunload', function(event) {
-    sessionStorage.setItem('saved_messages', $('#chat_area').html())
+{#    sessionStorage.setItem('saved_messages', $('#chat_area').html())#}
     mess = {'msgtype':'chat',
             'msg': {'text':'disconnect'}};
     ws.send(JSON.stringify(mess));
 });
 
 </script>
-
 <div class="row" id="container">
 <div class="col-md-offset-2 col-md-8">
 
-<div class="row" style="background-color: rgb(133,133,133)">
+    <div class="row" style="background-color: rgb(133,133,133)">
     <div class="col-md-1">
         <a id="expand" href="#" style="color: #E76600"><strong>ЧАТ</strong></a>
     </div>
-</div>
+    </div>
 
-<div class="row" id="whole_chat" style="border-style:solid;border-width:1px;">
-<div class="col-md-12">
+    <div class="row" id="whole_chat" style="border-style:solid;border-width:1px;">
+    <div class="col-md-12">
 
-<div class="row">
-    <div class="col-md-2" id="rooms_area" style="border-bottom-style: solid;border-width:1px;height:350px;overflow:auto;">
-        <ul class="list-unstyled"></ul>
+        <div class="row">
+            <div class="col-md-2" id="rooms_area" style="border-bottom-style: solid;border-width:1px;height:350px;overflow:auto;">
+            </div>
+            <div class="col-md-8" id="chat_area" style="border-style: none solid solid;border-width:1px;height:350px;overflow:auto;"></div>
+            <div class="col-md-2" id="users_area" style="border-bottom-style: solid;border-width:1px;height:350px;overflow:auto;"></div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-7">
+                <input type="text" id='txt_message' class="form-control" name="message"/>
+            </div>
+            <div class="col-md-2">
+                <input type="submit" id='submit' class="btn btn-default" value="Отправить"/>
+            </div>
+        </div>
     </div>
-    <div class="col-md-8" id="chat_area" style="border-style: none solid solid;border-width:1px;height:350px;overflow:auto;"></div>
-    <div class="col-md-2" id="users_area" style="border-bottom-style: solid;border-width:1px;height:350px;overflow:auto;"></div>
-</div>
-<div class="row">
-    <div class="col-md-7">
-        <input type="text" id='txt_message' class="form-control" name="message"/>
     </div>
-    <div class="col-md-2">
-        <input type="submit" id='submit' class="btn btn-default" value="Отправить"/>
-    </div>
-    <div class="col-md-3 pull-right">
-        <a href="#" class="btn btn-default">Смайлы</a>
-    </div>
-</div>
-</div>
-</div>
 
 </div>
 </div>

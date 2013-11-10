@@ -18,26 +18,3 @@ def main(request):
     return render(request, 'main.html', {'room_title': room_title,
                                          'form':form,
                                          'is_forum_page': is_forum_page})
-
-
-def room(request, room_name):
-    current_room = get_object_or_404(Room, title=room_name)
-    room_users = CustomUser.objects.filter(room=current_room).values_list('name', flat=True)
-
-    error = None
-    if request.method == 'POST':
-        new_username = request.POST['new_username']
-        if not new_username:
-            error = 'Error empty username'
-        elif new_username in room_users:
-            error = 'Choose another name...'
-        elif not error:
-            chatuser = CustomUser(name=new_username, room=current_room)
-            CustomUser.save()
-            messages = current_room.message_set.filter()[:5]
-            d = dict(room_name=room_name, username=new_username, messages=messages)
-            return render_to_response('chat.html', d,
-                        context_instance=RequestContext(request))
-    return render_to_response( 'login.html', {'error':error,
-                        'room_users': ', '.join(room_users)},
-                        context_instance=RequestContext(request))
