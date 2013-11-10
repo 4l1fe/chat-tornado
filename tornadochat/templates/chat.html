@@ -40,32 +40,19 @@ function change_room(elem) {
     var new_room_name = new_room.text();
 
     curr_room.removeClass('active_room');
-    $('chat_area div').hide()
+    $('#chat_area div').hide()
     new_room.addClass('active_room');
-    $('chat_area div').filter('#'+new_room_name).show();
-
-    mess = {'msgtype':'chat',
-            'msg': {'new_room':new_room_name,
-                    'text':'change_room'}};
-    ws.send(JSON.stringify(mess));
+    $('#chat_area div').filter('#'+new_room_name).show();
 }
 
 $(function() {
-{#    var saved_messages = sessionStorage.getItem('saved_messages')#}
-{#    if (saved_messages) {#}
-{#        $('#chat_area').append(saved_messages);#}
-{#    }#}
     ws = new WebSocket("ws://{{ tornado_full_address }}/websocket");
     ws.onmessage = function(event){
-        if ('new_user:' == event.data.slice(0,9)) {
-            message = event.data.slice(9).trim();
-            $('#users_area').append('<div id="'+message+'">'+message+'</div>').scrollTop($('#users_area').innerHeight());
-        }
-        else if ('all_rooms:' == event.data.slice(0,10)) {
+        if ('all_rooms:' == event.data.slice(0,10)) {
             var rooms =  event.data.slice(10).trim().split(';');
             for (var i=0;i<rooms.length;i++) {
                 var room = rooms[i];
-                $('#rooms_area').append('<div class="row"><a class="room" href="#'+room+'" onclick="change_room(this)">'+room+'</a></div>');
+                $('#rooms_area').append('<div class="row"><a href="#'+room+'" onclick="change_room(this)">'+room+'</a></div>');
                 $('#chat_area').append('<div id="'+room+'">'+room+'</div>')
             }
             var first_room = $('#rooms_area div').first();
@@ -73,8 +60,9 @@ $(function() {
             first_room.addClass('active_room');
             $('#chat_area div').filter('#'+first_room.text()).show()
         }
-        else if ('change_room:' == event.data.slice(0,12)) {
-            var new_room_name = event.data.slice(12).trim();
+        else if ('new_user:' == event.data.slice(0,9)) {
+            message = event.data.slice(9).trim();
+            $('#users_area').append('<div id="'+message+'">'+message+'</div>').scrollTop($('#users_area').innerHeight());
         }
         else if('remove_user:' == event.data.slice(0, 12)){
             var remove_nick = event.data.slice(12).trim();
@@ -92,14 +80,13 @@ $(function() {
         $('#submit').on('click', send_message);
 });
 
-$(window).on('beforeunload', function(event) {
-{#    sessionStorage.setItem('saved_messages', $('#chat_area').html())#}
+$(window).on('beforeunload', function() {
     mess = {'msgtype':'chat',
             'msg': {'text':'disconnect'}};
     ws.send(JSON.stringify(mess));
 });
-
 </script>
+
 <div class="row" id="container">
 <div class="col-md-offset-2 col-md-8">
 
