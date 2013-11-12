@@ -24,8 +24,8 @@ $(document).ready(function() {
                 $('#online_users').text(event.data.slice(10));
             }
             else if (event.data.slice(0,9) == 'new_user:') {
-                message = event.data.slice(9).trim();
-                $('#online_users').append('<div id="' + message + '">' + message + '</div>').scrollTop($('#online_users').innerHeight());
+                user = event.data.slice(9).trim();
+                $('#online_users').append('<div id="' + user + '">' + user + '</div>').scrollTop($('#online_users').innerHeight());
             }
             else if(event.data.slice(0, 12) == 'remove_user:'){
                 var remove_nick = event.data.slice(12).trim();
@@ -48,12 +48,12 @@ $(window).bind('beforeunload', function() {
 function send_message()
 {
     var message = document.getElementById('txt_message')
-        if (message.value == '') {
+        if (user.value == '') {
             alert('You cant send empty message')
         } else {
-            var json = mess = { 'msgtype':'chat', 'msg': {'room':'{{room_title}}', 'username':'{{user.username}}', 'text':message.value}};
+            var json = mess = { 'msgtype':'chat', 'msg': {'room':'{{room_title}}', 'username':'{{user.username}}', 'text':user.value}};
             ws.send(JSON.stringify(json));
-            message.value = '';
+            user.value = '';
         }
 }
 

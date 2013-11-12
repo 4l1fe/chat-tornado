@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import re
 import os
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "chat.settings")
 
 import tornado.websocket
 import tornado.escape
 import logging
+import re
+import json
 from .models import Room, Message, CustomUser
 from django.contrib.sessions.models import Session
 
@@ -18,9 +19,9 @@ logger.addHandler(logging_handler)
 logger.setLevel(logging.INFO)
 
 #filename = os.path.abspath(__file__)
-with open(r'D:\SCRIPTS\DJANGO\tornadochat\chat_app\badwords.txt') as file:
-    badwords = [line.decode('cp1251').strip() for line in file.readlines()]
-logger.info(badwords)
+#with open(r'D:\SCRIPTS\DJANGO\tornadochat\chat_app\badwords.txt') as file:
+#    badwords = [line.decode('cp1251').strip() for line in file.readlines()]
+#logger.info(badwords)
 
 
 def censor_message_text(text):
@@ -40,20 +41,27 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         morsel = self.request.cookies['sessionid']  # возвращает объект Morsel.
         sessionid = morsel.value
-        session_obj = Session.objects.get(pk=sessionid)
-        decoded_session = session_obj.get_decoded()
+        decoded_session = Session.objects.get(pk=sessionid).get_decoded()
         user_id = decoded_session['_auth_user_id']  # _auth_user_id содержит pk объекта django.contrib.auth.models.User
         self.user = CustomUser.objects.get(user__pk=user_id)
         self.user_name = self.user.user.username
+        first_room = self.room_names[0]
+        self.connections[first_room][self.user_name] = self  # добавляю своё соединение в общий словарь.
 
-        mess = 'all_rooms:' + ';'.join(self.room_names)
-        self.write_message(mess)
+        users_in_f_room = [u for u in self.connections[first_room]]
+        d = {'text': 'initialization',
+             'rooms': self.room_names,
+             'users': users_in_f_room}
+        mess = json.dumps(d, ensure_ascii=False)
+        self.write_message(mess)  # шлю себе начальные данные(комнаты, пользователей в 1й комнате)
 
-        self.connections[self.user_name] = self                         # добавляю своё соединение в общий словарь.
-        for online_user_name, connection in self.connections.items():   # цикл по всем соединениям.
-            self.write_message('new_user:'+online_user_name)            # шлю себе имя каждого онлайн польз из существующих.
-            if online_user_name != self.user_name:                      # уведомление в чат всем , кроме себя
-                connection.write_message('new_user:'+self.user_name)    # шлю своё имя этому пользователю
+        for user_in_f_room, connection in self.connections[first_room].items():  # цикл по всем соединениям.
+            if user_in_f_room != self.user_name:  # уведомление в чат всем , кроме себя
+                d = {'room': first_room,
+                     'text': 'new_user',
+                     'user': user_in_f_room}
+                mess = json.dumps(d)
+                connection.write_message(d)
 
     def chat_handler(self, message):
         if message['text'] == 'disconnect':
@@ -63,12 +71,14 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             del self.connections[self.user_name]
 
         else:
-            room = Room.objects.filter(title=self.user_current_room).get()
-            message['text'] = censor_message_text(message['text'])
+            room = Room.objects.filter(title=message['room']).get()
             message_obj = Message(room=room, username=self.user_name, text=message['text'])
             message_obj.save()
-            mess = u'{0}: {1}'.format(self.user_name, message['text'])
-            for connection in self.connections[self.user_current_room].values():
+            d = {'room': message['room'],
+                 'user': self.user_name,
+                 'text': censor_message_text(message['text'])}
+            mess = json.dumps(d)
+            for connection in self.connections[message['room']].values():
                 connection.write_message(mess)
 
     def on_message(self, message):
