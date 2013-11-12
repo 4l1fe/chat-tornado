@@ -13,14 +13,16 @@ function send_message(event) {
     var message = document.getElementById('txt_message')
 
     function send() {
-        if (message.value.trim() == '') {
+        if (user.value.trim() == '') {
             alert('You cant send empty message')
         }
         else {
+        var current_room_name = $('.active_room').text()
         var json = mess = {'msgtype':'chat',
-                           'msg':{'text':message.value}};
+                           'msg':{'room':current_room_name,
+                                  'text':user.value}};
         ws.send(JSON.stringify(json));
-        message.value = '';}
+        user.value = '';}
     }
 
     if (event.type == 'keypress') {
@@ -48,28 +50,34 @@ function change_room(elem) {
 $(function() {
     ws = new WebSocket("ws://{{ tornado_full_address }}/websocket");
     ws.onmessage = function(event){
-        if ('all_rooms:' == event.data.slice(0,10)) {
-            var rooms =  event.data.slice(10).trim().split(';');
-            for (var i=0;i<rooms.length;i++) {
-                var room = rooms[i];
+        var d = JSON.parse(event.data);
+        if ('initialization:' == d['text']) {
+            for (var i=0;i<d['rooms'].length;i++) {
+                var room = d['rooms'][i];
                 $('#rooms_area').append('<div class="row"><a href="#'+room+'" onclick="change_room(this)">'+room+'</a></div>');
-                $('#chat_area').append('<div id="'+room+'">'+room+'</div>')
+                $('#chat_area').append('<div id="'+room+'">'+room+'</div>');
+            };
+            for (var i=0;i<d['users'].length;i++) {
+                var user = d['users'][i];
+                $('#users_area').append('<div id="'+user+'">'+user+'</div>');
             }
             var first_room = $('#rooms_area div').first();
             $('#chat_area div').hide();
             first_room.addClass('active_room');
             $('#chat_area div').filter('#'+first_room.text()).show()
         }
-        else if ('new_user:' == event.data.slice(0,9)) {
-            message = event.data.slice(9).trim();
-            $('#users_area').append('<div id="'+message+'">'+message+'</div>').scrollTop($('#users_area').innerHeight());
+        else if ('new_user' == d['text']) {
+            user = d['user'];
+            $('#users_area').append('<div id="'+user+'">'+user+'</div>').scrollTop($('#users_area').innerHeight());
         }
-        else if('remove_user:' == event.data.slice(0, 12)){
-            var remove_nick = event.data.slice(12).trim();
+        else if('remove_user:' == d['text'].slice(0, 12)){
+            var remove_nick = d['text'].slice(12).trim();
             $('#'+remove_nick).remove();
         }
         else {
-            $('#chat_area').append(get_time()+event.data+'<br/>');
+            var mess = get_time() + d['user'] + ':' + d['text'] + '<br>';
+            var required_div = '#chat_area #' + d['room'];
+            $(required_div).append(mess);
         }
     }
 
