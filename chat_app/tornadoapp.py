@@ -19,13 +19,12 @@ logger.addHandler(logging_handler)
 logger.setLevel(logging.INFO)
 
 #filename = os.path.abspath(__file__)
-#with open(r'D:\SCRIPTS\DJANGO\tornadochat\chat_app\badwords.txt') as file:
-#    badwords = [line.decode('cp1251').strip() for line in file.readlines()]
+with open(r'D:\SCRIPTS\DJANGO\tornadochat\chat_app\badwords.txt') as file:
+    badwords = [line.decode('cp1251').strip() for line in file.readlines()]
 #logger.info(badwords)
 
 
 def censor_message_text(text):
-    #replace_words = u'хуй', u'пизда', u'блять', u'ебать'
     for word in badwords:
         text = re.sub(re.escape(word), u'цензура', text)
     return text
@@ -38,7 +37,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
     for room_name in room_names:
         connections[room_name] = {}
 
-    def open(self):
+    def open(self):  # при подключении работаем с первой комнатой.
         morsel = self.request.cookies['sessionid']  # возвращает объект Morsel.
         sessionid = morsel.value
         decoded_session = Session.objects.get(pk=sessionid).get_decoded()
@@ -50,12 +49,12 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
 
         users_in_f_room = [u for u in self.connections[first_room]]
         d = {'text': 'initialization',
-             'rooms': self.room_names,
+             'rooms': [r.encode() for r in self.room_names],
              'users': users_in_f_room}
-        mess = json.dumps(d, ensure_ascii=False)
+        mess = json.dumps(d)
         self.write_message(mess)  # шлю себе начальные данные(комнаты, пользователей в 1й комнате)
 
-        for user_in_f_room, connection in self.connections[first_room].items():  # цикл по всем соединениям.
+        for user_in_f_room, connection in self.connections[first_room].items():
             if user_in_f_room != self.user_name:  # уведомление в чат всем , кроме себя
                 d = {'room': first_room,
                      'text': 'new_user',
@@ -65,21 +64,28 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
 
     def chat_handler(self, message):
         if message['text'] == 'disconnect':
-            mess_del = 'remove_user:{}'.format(self.user_name)
-            for connection in self.connections.values():
-                connection.write_message(mess_del)
-            del self.connections[self.user_name]
-
+            d = {'room': message['room'],
+                 'text': 'remove_user',
+                 'user': self.user_name}
+            mess = json.dumps(d)
+            all_connections = [con for k in self.connections for con in self.connections[k].values()]
+            for con in all_connections:
+                con.write_message(mess)
+            del self.connections[message['room']][self.user_name]
+        elif message['text'] == 'change_room':
+            self.connections[message['new_room']][self.user_name] = self
+            del self.connections[message['room']][self.user_name]
         else:
-            room = Room.objects.filter(title=message['room']).get()
+            room = Room.objects.get(title=message['room'])
             message_obj = Message(room=room, username=self.user_name, text=message['text'])
             message_obj.save()
             d = {'room': message['room'],
                  'user': self.user_name,
                  'text': censor_message_text(message['text'])}
             mess = json.dumps(d)
-            for connection in self.connections[message['room']].values():
-                connection.write_message(mess)
+            all_connections = [con for k in self.connections for con in self.connections[k].values()]
+            for con in all_connections:
+                con.write_message(mess)
 
     def on_message(self, message):
         parsed = tornado.escape.json_decode(message)
