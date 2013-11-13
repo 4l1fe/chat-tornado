@@ -10,29 +10,29 @@ function get_time() {
 };
 
 function send_message(event) {
-    var message = document.getElementById('txt_message')
+    var message = $('input#txt_message')
 
     function send() {
-        if (user.value.trim() == '') {
+        if (message.val().trim() == '') {
             alert('You cant send empty message')
         }
         else {
-        var current_room_name = $('.active_room').text()
-        var json = mess = {'msgtype':'chat',
-                           'msg':{'room':current_room_name,
-                                  'text':user.value}};
-        ws.send(JSON.stringify(json));
-        user.value = '';}
-    }
+            var current_room_name = $('.active_room').text()
+            var json = mess = {'msgtype': 'chat',
+                               'msg': {'room': current_room_name,
+                                       'text': message.val()}};
+            ws.send(JSON.stringify(json));
+            message.val('');
+        }};
 
     if (event.type == 'keypress') {
         if (event.which == 13 || event.keyCode == 13) {
-            send()
+            send();
             return false;}
         return true;
     }
     else {
-        send()
+        send();
     }
 }
 
@@ -45,17 +45,24 @@ function change_room(elem) {
     $('#chat_area div').hide()
     new_room.addClass('active_room');
     $('#chat_area div').filter('#'+new_room_name).show();
+
+    var current_room_name = $('.active_room').text()
+    mess = {'msgtype': 'chat',
+            'msg': {'room': current_room_name,
+                    'new_room': new_room_name,
+                    'text': 'change_room'}};
+    ws.send(JSON.stringify(mess));
 }
 
 $(function() {
     ws = new WebSocket("ws://{{ tornado_full_address }}/websocket");
     ws.onmessage = function(event){
         var d = JSON.parse(event.data);
-        if ('initialization:' == d['text']) {
+        if ('initialization' == d['text']) {
             for (var i=0;i<d['rooms'].length;i++) {
                 var room = d['rooms'][i];
                 $('#rooms_area').append('<div class="row"><a href="#'+room+'" onclick="change_room(this)">'+room+'</a></div>');
-                $('#chat_area').append('<div id="'+room+'">'+room+'</div>');
+                $('#chat_area').append('<div id="'+room+'"></div>');
             };
             for (var i=0;i<d['users'].length;i++) {
                 var user = d['users'][i];
@@ -89,8 +96,10 @@ $(function() {
 });
 
 $(window).on('beforeunload', function() {
-    mess = {'msgtype':'chat',
-            'msg': {'text':'disconnect'}};
+    var current_room_name = $('.active_room').text()
+    mess = {'msgtype': 'chat',
+            'msg': {'room': current_room_name,
+                    'text': 'disconnect'}};
     ws.send(JSON.stringify(mess));
 });
 </script>
