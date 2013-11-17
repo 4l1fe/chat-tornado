@@ -1,6 +1,14 @@
 <script>
 var ws;
 
+$(window).on('beforeunload', function() {
+    var current_room_name = $('.active_room').text()
+    mess = {'msg_from': 'chat',
+            'msg': {'room': current_room_name,
+                    'type': 'disconnect'}};
+    ws.send(JSON.stringify(mess));
+})
+
 function get_time() {
     var currentTime = new Date()
     hours = currentTime.getHours()
@@ -18,8 +26,9 @@ function send_message(event) {
         }
         else {
             var current_room_name = $('.active_room').text()
-            var json = mess = {'msgtype': 'chat',
-                               'msg': {'room': current_room_name,
+            var json = mess = {'msg_from': 'chat',
+                               'msg': {'type': 'text',
+                                       'room': current_room_name,
                                        'text': message.val()}};
             ws.send(JSON.stringify(json));
             message.val('');
@@ -38,6 +47,7 @@ function send_message(event) {
 
 function change_room(elem) {
     var curr_room = $('#rooms_area div').filter('.active_room')
+    var current_room_name = curr_room.text()
     var new_room = $(elem).parent();
     var new_room_name = new_room.text();
 
@@ -46,22 +56,50 @@ function change_room(elem) {
     new_room.addClass('active_room');
     $('#chat_area div').filter('#'+new_room_name).show();
 
-    var current_room_name = $('.active_room').text()
-    mess = {'msgtype': 'chat',
+    mess = {'msg_from': 'chat',
             'msg': {'room': current_room_name,
                     'new_room': new_room_name,
-                    'text': 'change_room'}};
+                    'type': 'change_room'}};
     ws.send(JSON.stringify(mess));
+}
+
+function create_room(elem) {
+
+}
+
+function edit_room_name(elem) {
+
+    var current_name = $(elem).parent().text();
+    while (true) {
+        var edited_name = prompt('Введите название комнаты.');
+        if (edited_name.trim() == '') { // тут может быть undefined, надо проверять.
+            alert('Имя группы не должно быть пустым.');
+            continue;}
+        break;
+    }
+    mess = {'msg_from': 'chat',
+            'msg': {'type': 'edit_room_name',
+                    'room': current_name,
+                    'edited_name': edited_name}};
+    ws.send(JSON.stringify(mess));
+}
+
+function delete_room(elem) {
+    alert('delete_room');
 }
 
 $(function() {
     ws = new WebSocket("ws://{{ tornado_full_address }}/websocket");
     ws.onmessage = function(event){
         var d = JSON.parse(event.data);
-        if ('initialization' == d['text']) {
+        if ('initialization' == d['type']) {
             for (var i=0;i<d['rooms'].length;i++) {
                 var room = d['rooms'][i];
-                $('#rooms_area').append('<div class="row"><a href="#'+room+'" onclick="change_room(this)">'+room+'</a></div>');
+                $('#rooms_area').append('<div class="row">' +
+                                        '<a href="#'+room+'" onclick="change_room(this)">'+room+'</a>' +
+                                        '<span class="glyphicon glyphicon-remove text-danger pull-right" onclick="delete_room()"></span>' +
+                                        '<span class="glyphicon glyphicon-edit text-success pull-right" onclick="edit_room_name()"></span>' +
+                                        '</div>');
                 $('#chat_area').append('<div id="'+room+'"></div>');
             };
             for (var i=0;i<d['users'].length;i++) {
@@ -73,34 +111,34 @@ $(function() {
             first_room.addClass('active_room');
             $('#chat_area div').filter('#'+first_room.text()).show()
         }
-        else if ('new_user' == d['text']) {
-            user = d['user'];
-            $('#users_area').append('<div id="'+user+'">'+user+'</div>').scrollTop($('#users_area').innerHeight());
-        }
-        else if('remove_user:' == d['text'].slice(0, 12)){
-            var remove_nick = d['text'].slice(12).trim();
-            $('#'+remove_nick).remove();
-        }
-        else {
+        else if('text' == d['type']) {
             var mess = get_time() + d['user'] + ':' + d['text'] + '<br>';
             var required_div = '#chat_area #' + d['room'];
             $(required_div).append(mess);
         }
+        else if ('add_user' == d['type']) {
+            var user = d['user'];
+            $('#users_area').append('<div id="'+user+'">'+user+'</div>').scrollTop($('#users_area').innerHeight());
+        }
+        else if ('edit_room_name' == d['type']) {
+            $('#rooms_area div:contains("'+d['room']+'")').text(d['edited_name']);
+        }
+        else if('disconnect' == d['type']) {
+            var remove_nick = d['user'];
+            $('#'+remove_nick).remove();
+        }
+        else if ('error' == d['type']) {
+            alert(d['text']);
+        }
     }
 
-        $('#expand').on('click', function() {
-            $('#whole_chat').slideToggle('slow');
-        });
-        $('#txt_message').on('keypress', {}, send_message);
-        $('#submit').on('click', send_message);
-});
+    $('#expand').on('click', function() {
+        $('#whole_chat').slideToggle('slow');
+    });
+    $('#txt_message').on('keypress', {}, send_message);
+    $('#submit').on('click', send_message);
+{#    $('span').on('click', edit_room_name);#}
 
-$(window).on('beforeunload', function() {
-    var current_room_name = $('.active_room').text()
-    mess = {'msgtype': 'chat',
-            'msg': {'room': current_room_name,
-                    'text': 'disconnect'}};
-    ws.send(JSON.stringify(mess));
 });
 </script>
 
