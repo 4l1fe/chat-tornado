@@ -7,6 +7,7 @@ import tornado.escape
 import logging
 import re
 import json
+from copy import copy
 from .models import Room, Message, CustomUser
 from django.contrib.sessions.models import Session
 from django.core.exceptions import ObjectDoesNotExist
@@ -33,19 +34,21 @@ def censor_message_text(text):
 
 class ChatSocketHandler(tornado.websocket.WebSocketHandler):
 
+    # Создание соединений с комнатами при запуске сервера.
     connections = {}
-    room_names = Room.objects.all().values_list('title', flat=True)
+    room_names = Room.objects.order_by('pk').values_list('title', flat=True)
     for room_name in room_names:
         connections[room_name] = []
 
     def open(self):  # при подключении работаем с первой комнатой.
+        self.room_names = Room.objects.order_by('pk').values_list('title', flat=True)
         morsel = self.request.cookies['sessionid']  # возвращает объект Morsel.
         sessionid = morsel.value
         decoded_session = Session.objects.get(pk=sessionid).get_decoded()
         user_id = decoded_session['_auth_user_id']  # _auth_user_id содержит pk объекта django.contrib.auth.models.User
         self.user = CustomUser.objects.get(user__pk=user_id)
         self.user_name = self.user.user.username
-        first_room = self.room_names[0]
+        first_room = self.room_names[0].decode()
         self.connections[first_room].append(self) # добавляю своё соединение в общий словарь.
 
         users_in_f_room = [con.user_name for con in self.connections[first_room]]
@@ -95,11 +98,13 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             self.connections[message['room']].remove(self)
             logger.info('post_pop = '+str(self.connections))
         elif message['type'] == 'edit_room_name':
-            logger
+            logger.info('edit_room = '+str(message))
             try:
                 room = Room.objects.get(title=message['room'])
                 room.title = message['edited_name']
                 room.save()
+                self.connections[message['edited_name']] = copy(self.connections[message['room']])
+                del self.connections[message['room']]
                 d = {'type': 'edit_room_name',
                      'room': message['room'],
                      'edited_name': message['edited_name']}

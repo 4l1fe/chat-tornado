@@ -1,0 +1,3 @@
+[INFO    ] pre_disconnect = [<chat_app.tornadoapp.ChatSocketHandler object at 0x00000000042AFA90>, <chat_app.tornadoapp.ChatSocketHandler object at 0x00000000042B7240>]
+[INFO    ] pre_disconnect = [<chat_app.tornadoapp.ChatSocketHandler object at 0x00000000042AFA90>, <chat_app.tornadoapp.ChatSocketHandler object at 0x00000000042B7E48>]
+[INFO    ] pre_disconnect = [<chat_app.tornadoapp.ChatSocketHandler object at 0x00000000042B7E48>, <chat_app.tornadoapp.ChatSocketHandler object at 0x00000000042B7E10>]
