@@ -10,15 +10,18 @@ class CustomUser(models.Model):
     def __unicode__(self):
         return '[{}] {}'.format(self.user.username, self.something_special)
 
+
 class Room(models.Model):
-    title = models.TextField()
+    title = models.TextField(unique=True)
 
     def __unicode__(self):
         return '{0}'.format(self.title)
 
-# class ChatUser(models.Model):
-#     name = models.TextField()
-#     room = models.ForeignKey(Room)
+    def delete(self, using=None):
+        if self.pk == 1:
+            return
+        else:
+            super(Room, self).delete(using)
 
 
 class Message(models.Model):

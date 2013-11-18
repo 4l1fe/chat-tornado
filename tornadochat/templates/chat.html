@@ -68,7 +68,6 @@ function create_room(elem) {
 }
 
 function edit_room_name(elem) {
-
     var current_name = $(elem).parent().text();
     while (true) {
         var edited_name = prompt('Введите название комнаты.');
@@ -97,8 +96,8 @@ $(function() {
                 var room = d['rooms'][i];
                 $('#rooms_area').append('<div class="row">' +
                                         '<a href="#'+room+'" onclick="change_room(this)">'+room+'</a>' +
-                                        '<span class="glyphicon glyphicon-remove text-danger pull-right" onclick="delete_room()"></span>' +
-                                        '<span class="glyphicon glyphicon-edit text-success pull-right" onclick="edit_room_name()"></span>' +
+                                        '<span class="glyphicon glyphicon-remove text-danger pull-right" onclick="delete_room(this)"></span>' +
+                                        '<span class="glyphicon glyphicon-edit text-success pull-right" onclick="edit_room_name(this)"></span>' +
                                         '</div>');
                 $('#chat_area').append('<div id="'+room+'"></div>');
             };
@@ -121,7 +120,7 @@ $(function() {
             $('#users_area').append('<div id="'+user+'">'+user+'</div>').scrollTop($('#users_area').innerHeight());
         }
         else if ('edit_room_name' == d['type']) {
-            $('#rooms_area div:contains("'+d['room']+'")').text(d['edited_name']);
+            $('#rooms_area div a:contains("'+d['room']+'")').text(d['edited_name']);
         }
         else if('disconnect' == d['type']) {
             var remove_nick = d['user'];
