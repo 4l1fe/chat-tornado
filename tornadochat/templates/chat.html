@@ -68,7 +68,7 @@ function create_room(elem) {
 }
 
 function edit_room_name(elem) {
-    var current_name = $(elem).parent().text();
+    var room_name = $(elem).parent().text();
     while (true) {
         var edited_name = prompt('Введите название комнаты.');
         if (edited_name.trim() == '') { // тут может быть undefined, надо проверять.
@@ -78,13 +78,20 @@ function edit_room_name(elem) {
     }
     mess = {'msg_from': 'chat',
             'msg': {'type': 'edit_room_name',
-                    'room': current_name,
+                    'room': room_name,
                     'edited_name': edited_name}};
     ws.send(JSON.stringify(mess));
 }
 
 function delete_room(elem) {
-    alert('delete_room');
+    var deleted_name = $(elem).parent().text();
+    var delete_room = confirm('Удалить комнату?');
+    if (delete_room) {
+        mess = {'msg_from': 'chat',
+            'msg': {'type': 'delete_room',
+                    'deleted_room': deleted_name}};
+        ws.send(JSON.stringify(mess));
+    };
 }
 
 $(function() {
@@ -121,6 +128,10 @@ $(function() {
         }
         else if ('edit_room_name' == d['type']) {
             $('#rooms_area div a:contains("'+d['room']+'")').text(d['edited_name']);
+        }
+        else if ('delete_room' == d['type']) {
+            $('#rooms_area div').remove(':contains("'+d['deleted_room']+'")');
+            $('#chat_area div').remove('#'+d['deleted_room']);
         }
         else if('disconnect' == d['type']) {
             var remove_nick = d['user'];
