@@ -117,6 +117,22 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             all_connections = [con for room in self.connections for con in self.connections[room]]
             for con in all_connections:
                 con.write_message(mess)
+        elif message['type'] == 'delete_room':
+            try:
+                room = Room.objects.get(title=message['deleted_room'])
+                room.delete()
+                del self.connections[message['deleted_room']]
+                d = {'type': 'delete_room',
+                     'deleted_room': message['deleted_room']}
+                mess = json.dumps(d)
+            except ObjectDoesNotExist:
+                d = {'type': 'error',
+                     'text': 'Такой комнаты не существует'}
+                mess = json.dumps(d)
+
+            all_connections = [con for room in self.connections for con in self.connections[room]]
+            for con in all_connections:
+                con.write_message(mess)
 
     def on_message(self, message):
         parsed = tornado.escape.json_decode(message)

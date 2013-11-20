@@ -20,8 +20,7 @@ class Room(models.Model):
     def delete(self, using=None):
         if self.pk == 1:
             return
-        else:
-            super(Room, self).delete(using)
+        super(Room, self).delete(using)
 
 
 class Message(models.Model):
