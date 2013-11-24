@@ -8,9 +8,10 @@ import logging
 import re
 import json
 from copy import copy
-from .models import Room, Message, CustomUser
+from .models import Room, Message, CustomUser, NotAllowedToChange, NotAllowedToDelete
 from django.contrib.sessions.models import Session
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import IntegrityError
 
 
 logging_handler = logging.FileHandler(filename='chat_debug_log.txt', mode='a')
@@ -21,7 +22,8 @@ logger.addHandler(logging_handler)
 logger.setLevel(logging.INFO)
 
 #filename = os.path.realpath('badwords.txt')
-with open(r'D:\SCRIPTS\DJANGO\tornadochat\chat_app\badwords.txt') as file:
+filename = os.path.join(os.path.dirname(__file__), 'badwords.txt')
+with open(filename) as file:
     badwords = [line.decode('cp1251').strip() for line in file.readlines()]
 #logger.info(badwords)
 
@@ -41,64 +43,102 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         connections[room_name] = []
 
     def open(self):  # при подключении работаем с первой комнатой.
-        self.room_names = Room.objects.order_by('pk').values_list('title', flat=True)
         morsel = self.request.cookies['sessionid']  # возвращает объект Morsel.
         sessionid = morsel.value
         decoded_session = Session.objects.get(pk=sessionid).get_decoded()
         user_id = decoded_session['_auth_user_id']  # _auth_user_id содержит pk объекта django.contrib.auth.models.User
         self.user = CustomUser.objects.get(user__pk=user_id)
         self.user_name = self.user.user.username
-        first_room = self.room_names[0].decode()
-        self.connections[first_room].append(self) # добавляю своё соединение в общий словарь.
+        self.room_names = Room.objects.order_by('pk').values_list('title', flat=True)  # Комнаты могут обновиться, проверяем.
+        self.main_room = self.room_names[0].decode()
+        self.connections[self.main_room].append(self) # добавляю своё соединение в общий словарь.
 
-        users_in_f_room = [con.user_name for con in self.connections[first_room]]
         d = {'type': 'initialization',
-             'rooms': [r.encode() for r in self.room_names],
-             'users': users_in_f_room}
+             'rooms': [r.encode() for r in self.room_names]}
         mess = json.dumps(d)
-        self.write_message(mess)  # шлю себе начальные данные(комнаты, пользователей в 1й комнате)
+        self.write_message(mess)  # шлю себе все комнаты
 
-        for connection in self.connections[first_room]:
-            if connection.user_name != self.user_name:  # уведомление в чат всем , кроме себя
-                d = {'room': first_room,
-                     'type': 'add_user',
-                     'user': connection.user_name}
+        users_in_m_room = [con.user_name for con in self.connections[self.main_room]]
+        d = {'type': 'all_users',
+             'users': users_in_m_room}
+        mess = json.dumps(d)
+        self.write_message(mess)  # шлю всех польз-й из основной комнатыф
+
+        for conn in self.connections[self.main_room]:
+            if conn.user_name != self.user_name:  # уведомление в чат всем , кроме себя
+                d = {'type': 'add_user',
+                     'room': self.main_room,
+                     'user': self.user_name}
                 mess = json.dumps(d)
-                connection.write_message(mess)
+                conn.write_message(mess)
+
+    def on_message(self, message):
+        parsed = tornado.escape.json_decode(message)
+        if parsed['msg_from'] == 'chat':
+            self.chat_handler(parsed['msg'])
 
     def chat_handler(self, message):
         if message['type'] == 'text':
             room = Room.objects.get(title=message['room'])
             message_obj = Message(room=room, username=self.user_name, text=message['text'])
             message_obj.save()
-            d = {'room': message['room'],
+            d = {'type': 'text',
+                 'room': message['room'],
                  'user': self.user_name,
-                 'type': 'text',
                  'text': censor_message_text(message['text'])}
             mess = json.dumps(d)
-            all_connections = [con for room in self.connections for con in self.connections[room]]
-            logger.info('all_coon = '+str(all_connections))
-            for con in all_connections:
-                con.write_message(mess)
+            all_connections = [conn for room in self.connections for conn in self.connections[room]]
+            for conn in all_connections:
+                conn.write_message(mess)
         elif message['type'] == 'disconnect':
-            d = {'room': message['room'],
-                 'type': 'disconnect',
+            d = {'type': 'disconnect',
+                 'room': message['room'],
                  'user': self.user_name}
             mess = json.dumps(d)
-            all_connections = [con for room in self.connections for con in self.connections[room]]
-            logger.info('pre_disconnect = '+str(all_connections))
-            for con in all_connections:
-                con.write_message(mess)
+            all_connections = [conn for room in self.connections for conn in self.connections[room]]
+            for conn in all_connections:
+                conn.write_message(mess)
             self.connections[message['room']].remove(self)
             self.close()
         elif message['type'] == 'change_room':
-            logger.info('pre_change = '+str(self.connections))
             self.connections[message['new_room']].append(self)
-            logger.info('post_change = '+str(self.connections))
+
+            users_in_new_room = [conn.user_name for conn in self.connections[message['new_room']]]
+            d = {'type': 'all_users',  # шлю себе всех пользователей из новой комнаты
+                 'users': users_in_new_room}
+            mess = json.dumps(d)
+            self.write_message(mess)
+
+            for conn in self.connections[message['new_room']]:
+                if conn.user_name != self.user_name:
+                    d = {'type': 'add_user',
+                         'room': self.main_room,
+                         'user': self.user_name}
+                    mess = json.dumps(d)
+                    conn.write_message(mess)
+
             self.connections[message['room']].remove(self)
-            logger.info('post_pop = '+str(self.connections))
+            d = {'type': 'remove_user',
+                 'user': self.user_name,
+                 'room': message['room']}
+            mess = json.dumps(d)
+            for conn in self.connections[message['room']]:
+                conn.write_message(mess)
+        elif message['type'] == 'create_room':
+            try:
+                created_room = Room(title=message['created_room'])
+                created_room.save()
+                self.connections[message['created_room']] = []
+                d = {'type': 'create_room',
+                     'created_room': message['created_room']}
+            except IntegrityError:
+                d = {'type': 'error',
+                     'text': 'Такая комната уже существует'}
+            mess = json.dumps(d)
+            all_connections = [conn for room in self.connections for conn in self.connections[room]]
+            for conn in all_connections:
+                conn.write_message(mess)
         elif message['type'] == 'edit_room_name':
-            logger.info('edit_room = '+str(message))
             try:
                 room = Room.objects.get(title=message['room'])
                 room.title = message['edited_name']
@@ -108,33 +148,35 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
                 d = {'type': 'edit_room_name',
                      'room': message['room'],
                      'edited_name': message['edited_name']}
-                mess = json.dumps(d)
             except ObjectDoesNotExist:
                 d = {'type': 'error',
                      'text': 'Такой комнаты не существует'}
-                mess = json.dumps(d)
-
-            all_connections = [con for room in self.connections for con in self.connections[room]]
-            for con in all_connections:
-                con.write_message(mess)
+            except NotAllowedToChange:
+                d = {'type': 'error',
+                     'text': 'Нельзя переименовать'}
+            mess = json.dumps(d)
+            all_connections = [conn for room in self.connections for conn in self.connections[room]]
+            for conn in all_connections:
+                conn.write_message(mess)
         elif message['type'] == 'delete_room':
             try:
                 room = Room.objects.get(title=message['deleted_room'])
                 room.delete()
+                for conn in self.connections[message['deleted_room']]:
+                    d = {'type': 'drop_to_main',
+                         'user': conn.user_name}
+                    mess = json.dumps(d)
+                    conn.write_message(d)
                 del self.connections[message['deleted_room']]
                 d = {'type': 'delete_room',
                      'deleted_room': message['deleted_room']}
-                mess = json.dumps(d)
             except ObjectDoesNotExist:
                 d = {'type': 'error',
                      'text': 'Такой комнаты не существует'}
-                mess = json.dumps(d)
-
-            all_connections = [con for room in self.connections for con in self.connections[room]]
-            for con in all_connections:
-                con.write_message(mess)
-
-    def on_message(self, message):
-        parsed = tornado.escape.json_decode(message)
-        if parsed['msg_from'] == 'chat':
-            self.chat_handler(parsed['msg'])
+            except NotAllowedToDelete:
+                d = {'type': 'error',
+                     'text': 'Нельзя удалить'}
+            mess = json.dumps(d)
+            all_connections = [conn for room in self.connections for conn in self.connections[room]]
+            for conn in all_connections:
+                conn.write_message(mess)

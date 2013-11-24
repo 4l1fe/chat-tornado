@@ -1,3 +1,4 @@
+#coding:utf-8
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -17,9 +18,14 @@ class Room(models.Model):
     def __unicode__(self):
         return '{0}'.format(self.title)
 
+    def save(self, force_insert=False, force_update=False, using=None):
+        if self.pk == 1:
+            raise NotAllowedToChange
+        super(Room, self).save(force_insert, force_update, using)
+
     def delete(self, using=None):
         if self.pk == 1:
-            return
+            raise NotAllowedToDelete
         super(Room, self).delete(using)
 
 
@@ -28,3 +34,12 @@ class Message(models.Model):
     username = models.TextField()
     room = models.ForeignKey(Room)
     datetime = models.DateTimeField(auto_now_add=True, db_index=True)
+
+
+class NotAllowedToChange(Exception):
+    """При попытке изменить запись основной комнаты"""
+    pass
+
+class NotAllowedToDelete(Exception):
+    """При попытке удалить основную комнату"""
+    pass

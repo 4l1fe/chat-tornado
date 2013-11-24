@@ -51,28 +51,38 @@ function change_room(elem) {
     var new_room = $(elem).parent();
     var new_room_name = new_room.text();
 
-    curr_room.removeClass('active_room');
-    $('#chat_area div').hide()
-    new_room.addClass('active_room');
-    $('#chat_area div').filter('#'+new_room_name).show();
-
     mess = {'msg_from': 'chat',
             'msg': {'room': current_room_name,
                     'new_room': new_room_name,
                     'type': 'change_room'}};
     ws.send(JSON.stringify(mess));
+
+    curr_room.removeClass('active_room');
+    $('#chat_area div').hide()
+    new_room.addClass('active_room');
+    $('#chat_area div').filter('#'+new_room_name).show();
 }
 
 function create_room(elem) {
-
+    while (true) {
+        var created_room = prompt('Введите название комнаты')
+        if (created_room.trim() == '') { // тут может быть undefined, надо проверять.
+            alert('Имя комнаты не должно быть пустым');
+            continue;}
+        break;
+    }
+    mess = {'msg_from': 'chat',
+            'msg': {'type': 'create_room',
+                    'created_room': created_room}};
+    ws.send(JSON.stringify(mess));
 }
 
 function edit_room_name(elem) {
     var room_name = $(elem).parent().text();
     while (true) {
-        var edited_name = prompt('Введите название комнаты.');
+        var edited_name = prompt('Измените название комнаты');
         if (edited_name.trim() == '') { // тут может быть undefined, надо проверять.
-            alert('Имя группы не должно быть пустым.');
+            alert('Имя комнаты не должно быть пустым');
             continue;}
         break;
     }
@@ -98,33 +108,58 @@ $(function() {
     ws = new WebSocket("ws://{{ tornado_full_address }}/websocket");
     ws.onmessage = function(event){
         var d = JSON.parse(event.data);
+        var room_html = $('<div class="row">' +
+                          '<a onclick="change_room(this)"></a>' +
+                          '<span class="glyphicon glyphicon-remove text-danger pull-right" onclick="delete_room(this)"></span>' +
+                          '<span class="glyphicon glyphicon-edit text-success pull-right" onclick="edit_room_name(this)"></span>' +
+                          '</div>')
         if ('initialization' == d['type']) {
             for (var i=0;i<d['rooms'].length;i++) {
                 var room = d['rooms'][i];
-                $('#rooms_area').append('<div class="row">' +
-                                        '<a href="#'+room+'" onclick="change_room(this)">'+room+'</a>' +
-                                        '<span class="glyphicon glyphicon-remove text-danger pull-right" onclick="delete_room(this)"></span>' +
-                                        '<span class="glyphicon glyphicon-edit text-success pull-right" onclick="edit_room_name(this)"></span>' +
-                                        '</div>');
+                $('a', room_html).attr('href', '#'+room)
+                $('a', room_html).text(room)
+                $('#rooms_area').append(room_html.wrap('<div>').parent().html());
                 $('#chat_area').append('<div id="'+room+'"></div>');
             };
-            for (var i=0;i<d['users'].length;i++) {
-                var user = d['users'][i];
-                $('#users_area').append('<div id="'+user+'">'+user+'</div>');
-            }
-            var first_room = $('#rooms_area div').first();
+{#            for (var i=0;i<d['users'].length;i++) {#}
+{#                var user = d['users'][i];#}
+{#                $('#users_area').append('<div id="'+user+'">'+user+'</div>');#}
+{#            }#}
+            var main_room = $('#rooms_area div').first();
             $('#chat_area div').hide();
-            first_room.addClass('active_room');
-            $('#chat_area div').filter('#'+first_room.text()).show()
+            main_room.addClass('active_room');
+            $('#chat_area div').filter('#'+main_room.text()).show()
         }
         else if('text' == d['type']) {
             var mess = get_time() + d['user'] + ':' + d['text'] + '<br>';
-            var required_div = '#chat_area #' + d['room'];
-            $(required_div).append(mess);
+            var required_chat_div = '#chat_area #' + d['room'];
+            $(required_chat_div).append(mess);
+        }
+        else if ('all_users' == d['type']) {
+            $('#users_area').empty();
+            for (var i=0;i<d['users'].length;i++) {
+                var user = d['users'][i];
+                $('#users_area').append('<div id="'+user+'">'+user+'</div>');
+            };
         }
         else if ('add_user' == d['type']) {
-            var user = d['user'];
-            $('#users_area').append('<div id="'+user+'">'+user+'</div>').scrollTop($('#users_area').innerHeight());
+            $('#users_area').append('<div id="'+d['user']+'">'+d['user']+'</div>').scrollTop($('#users_area').innerHeight());
+            var mess = get_time() + 'Пользователь ' + d['user'] + ' вошел в комнату <br>';
+            var required_chat_div = '#chat_area #' + d['room'];
+            $(required_chat_div).append(mess);
+        }
+        else if ('remove_user' == d['type']) {
+            $('#users_area div').remove('#'+d['user']);
+            var mess = get_time() + 'Пользователь ' + d['user'] + ' покинул комнату <br>';
+            var required_chat_div = '#chat_area #' + d['room'];
+            $(required_chat_div).append(mess);
+        }
+        else if ('create_room' == d['type']) {
+            var created_room = d['created_room'];
+            $('a', room_html).attr('href', '#'+created_room);
+            $('a', room_html).text(created_room);
+            $('#rooms_area').append(room_html.wrap('<div>').parent().html());
+            $('#chat_area').append('<div id="'+created_room+'"></div>');
         }
         else if ('edit_room_name' == d['type']) {
             $('#rooms_area div a:contains("'+d['room']+'")').text(d['edited_name']);
@@ -142,12 +177,11 @@ $(function() {
         }
     }
 
-    $('#expand').on('click', function() {
-        $('#whole_chat').slideToggle('slow');
-    });
+    $('#expand').on('click', function() { $('#whole_chat').slideToggle('slow'); });
     $('#txt_message').on('keypress', {}, send_message);
     $('#submit').on('click', send_message);
 {#    $('span').on('click', edit_room_name);#}
+    $('#create').on('click', create_room);
 
 });
 </script>
@@ -172,6 +206,9 @@ $(function() {
         </div>
 
         <div class="row">
+            <div class="col-md-2">
+                <button type="button" id="create" class="btn btn-default"><span class="glyphicon glyphicon-plus text-success"></span>Создать</button>
+            </div>
             <div class="col-md-7">
                 <input type="text" id='txt_message' class="form-control" name="message"/>
             </div>
