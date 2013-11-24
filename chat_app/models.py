@@ -1,6 +1,7 @@
 #coding:utf-8
 from django.db import models
 from django.contrib.auth.models import User
+from tornadochat.settings import MAX_ROOMS_COUNT
 
 
 class CustomUser(models.Model):
@@ -21,6 +22,8 @@ class Room(models.Model):
     def save(self, force_insert=False, force_update=False, using=None):
         if self.pk == 1:
             raise NotAllowedToChange
+        if Room.objects.count() >= MAX_ROOMS_COUNT:
+            raise ReachMaxRoomCount
         super(Room, self).save(force_insert, force_update, using)
 
     def delete(self, using=None):
@@ -42,4 +45,8 @@ class NotAllowedToChange(Exception):
 
 class NotAllowedToDelete(Exception):
     """При попытке удалить основную комнату"""
+    pass
+
+class ReachMaxRoomCount(Exception):
+    """При создании комнат больше разрешенного количества"""
     pass
