@@ -121,10 +121,6 @@ $(function() {
                 $('#rooms_area').append(room_html.wrap('<div>').parent().html());
                 $('#chat_area').append('<div id="'+room+'"></div>');
             };
-{#            for (var i=0;i<d['users'].length;i++) {#}
-{#                var user = d['users'][i];#}
-{#                $('#users_area').append('<div id="'+user+'">'+user+'</div>');#}
-{#            }#}
             var main_room = $('#rooms_area div').first();
             $('#chat_area div').hide();
             main_room.addClass('active_room');
@@ -168,6 +164,23 @@ $(function() {
             $('#rooms_area div').remove(':contains("'+d['deleted_room']+'")');
             $('#chat_area div').remove('#'+d['deleted_room']);
         }
+{#        else if ('drop_to_main' == d['type']) {#}
+{#            var curr_room = $('#rooms_area div').filter('.active_room')#}
+{#            var current_room_name = curr_room.text()#}
+{#            var new_room = $(elem).parent();#}
+{#            var new_room_name = new_room.text();#}
+{#        #}
+{#            curr_room.removeClass('active_room');#}
+{#            $('#chat_area div').hide()#}
+{#            new_room.addClass('active_room');#}
+{#            $('#chat_area div').filter('#'+new_room_name).show();#}
+{#            #}
+{#            $('#users_area').empty();#}
+{#            for (var i=0;i<d['users'].length;i++) {#}
+{#                var user = d['users'][i];#}
+{#                $('#users_area').append('<div id="'+user+'">'+user+'</div>');#}
+{#            };#}
+{#        }#}
         else if('disconnect' == d['type']) {
             var remove_nick = d['user'];
             $('#'+remove_nick).remove();

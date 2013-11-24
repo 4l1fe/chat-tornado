@@ -1,5 +1,6 @@
 from tornadochat import settings
 
+
 def tornado_host_port(request):
     return {'tornado_host': settings.TORNADO_HOST,
             'tornado_port': settings.TORNADO_PORT,
