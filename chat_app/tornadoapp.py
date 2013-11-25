@@ -97,17 +97,12 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
                 d = {'type': 'error',
                      'text': 'Такой комнаты не существует'}
             mess = json.dumps(d)
-            all_connections = [conn for room in self.connections for conn in self.connections[room]]
-            for conn in all_connections:
-                conn.write_message(mess)
+            self.custom_write_message(d)
         elif message['type'] == 'disconnect':
             d = {'type': 'disconnect',
                  'room': message['room'],
                  'user': self.user_name}
-            mess = json.dumps(d)
-            all_connections = [conn for room in self.connections for conn in self.connections[room]]
-            for conn in all_connections:
-                conn.write_message(mess)
+            self.custom_write_message(d)
             self.connections[message['room']].remove(self)
             self.close()
         elif message['type'] == 'change_room':
@@ -147,10 +142,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             except ReachMaxRoomCount:
                 d = {'type': 'error',
                      'text': 'Создано максимально допустимое количество комнат'}
-            mess = json.dumps(d)
-            all_connections = [conn for room in self.connections for conn in self.connections[room]]
-            for conn in all_connections:
-                conn.write_message(mess)
+            self.custom_write_message(d)
         elif message['type'] == 'edit_room_name' and self.user.user.has_perm('chat_app.change_room'):
             try:
                 room = Room.objects.get(title=message['room'])
@@ -167,10 +159,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             except NotAllowedToChange:
                 d = {'type': 'error',
                      'text': 'Нельзя переименовать'}
-            mess = json.dumps(d)
-            all_connections = [conn for room in self.connections for conn in self.connections[room]]
-            for conn in all_connections:
-                conn.write_message(mess)
+            self.custom_write_message(d)
         elif message['type'] == 'delete_room' and self.user.user.has_perm('chat_app.delete_room'):
             try:
                 if not self.connections[message['deleted_room']]:
@@ -197,10 +186,8 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             except NotAllowedToDelete:
                 d = {'type': 'error',
                      'text': 'Нельзя удалить'}
-            mess = json.dumps(d)
             if d['type'] == 'error':
+                mess = json.dumps(d)
                 self.write_message(mess)
             else:
-                all_connections = [conn for room in self.connections for conn in self.connections[room]]
-                for conn in all_connections:
-                    conn.write_message(mess)
+                self.custom_write_message(d)
