@@ -62,7 +62,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         d = {'type': 'all_users',
              'users': users_in_main_room}
         mess = json.dumps(d)
-        self.write_message(mess)  # шлю всех польз-й из основной комнатыф
+        self.write_message(mess)  # шлю всех польз-й из основной комнаты
 
         for conn in self.connections[self.main_room]:
             if conn.user_name != self.user_name:  # уведомление в чат всем , кроме себя
@@ -77,15 +77,25 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         if parsed['msg_from'] == 'chat':
             self.chat_handler(parsed['msg'])
 
+    def custom_write_message(self, d):
+        mess = json.dumps(d)
+        all_connections = [conn for room in self.connections for conn in self.connections[room]]
+        for conn in all_connections:
+            conn.write_message(mess)
+
     def chat_handler(self, message):
         if message['type'] == 'text':
-            room = Room.objects.get(title=message['room'])
-            message_obj = Message(room=room, username=self.user_name, text=message['text'])
-            message_obj.save()
-            d = {'type': 'text',
-                 'room': message['room'],
-                 'user': self.user_name,
-                 'text': censor_message_text(message['text'])}
+            try:
+                room = Room.objects.get(title=message['room'])
+                message_obj = Message(room=room, username=self.user_name, text=message['text'])
+                message_obj.save()
+                d = {'type': 'text',
+                     'room': message['room'],
+                     'user': self.user_name,
+                     'text': censor_message_text(message['text'])}
+            except ObjectDoesNotExist:
+                d = {'type': 'error',
+                     'text': 'Такой комнаты не существует'}
             mess = json.dumps(d)
             all_connections = [conn for room in self.connections for conn in self.connections[room]]
             for conn in all_connections:
@@ -124,7 +134,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             mess = json.dumps(d)
             for conn in self.connections[message['room']]:
                 conn.write_message(mess)
-        elif message['type'] == 'create_room':
+        elif message['type'] == 'create_room' and self.user.user.has_perm('chat_app.add_room'):
             try:
                 created_room = Room(title=message['created_room'])
                 created_room.save()
@@ -141,7 +151,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             all_connections = [conn for room in self.connections for conn in self.connections[room]]
             for conn in all_connections:
                 conn.write_message(mess)
-        elif message['type'] == 'edit_room_name':
+        elif message['type'] == 'edit_room_name' and self.user.user.has_perm('chat_app.change_room'):
             try:
                 room = Room.objects.get(title=message['room'])
                 room.title = message['edited_name']
@@ -161,7 +171,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             all_connections = [conn for room in self.connections for conn in self.connections[room]]
             for conn in all_connections:
                 conn.write_message(mess)
-        elif message['type'] == 'delete_room':
+        elif message['type'] == 'delete_room' and self.user.user.has_perm('chat_app.delete_room'):
             try:
                 if not self.connections[message['deleted_room']]:
                     room = Room.objects.get(title=message['deleted_room'])
