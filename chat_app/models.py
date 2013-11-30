@@ -43,9 +43,11 @@ class NotAllowedToChange(Exception):
     """При попытке изменить запись основной комнаты"""
     pass
 
+
 class NotAllowedToDelete(Exception):
     """При попытке удалить основную комнату"""
     pass
+
 
 class ReachMaxRoomCount(Exception):
     """При создании комнат больше разрешенного количества"""
