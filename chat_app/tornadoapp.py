@@ -7,11 +7,14 @@ import tornado.escape
 import logging
 import re
 import json
+from tornadochat.settings import MESSAGE_HISTORY_NUMBER
 from copy import copy
-from .models import Room, Message, CustomUser, NotAllowedToChange, NotAllowedToDelete, ReachMaxRoomCount
+from django.db import IntegrityError
+from django.utils.timezone import now
 from django.contrib.sessions.models import Session
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import IntegrityError
+from django.core import serializers
+from .models import Room, Message, CustomUser, NotAllowedToChange, NotAllowedToDelete, ReachMaxRoomCount
 
 
 logging_handler = logging.FileHandler(filename='chat_debug_log.txt', mode='a')
@@ -21,11 +24,10 @@ logger = logging.getLogger()
 logger.addHandler(logging_handler)
 logger.setLevel(logging.INFO)
 
-#filename = os.path.realpath('badwords.txt')
+
 filename = os.path.join(os.path.dirname(__file__), 'badwords.txt')
 with open(filename) as file:
     badwords = [line.decode('cp1251').strip() for line in file.readlines()]
-#logger.info(badwords)
 
 
 def censor_message_text(text):
@@ -72,16 +74,28 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
                 mess = json.dumps(d)
                 conn.write_message(mess)
 
+        message_user_list = serializers.serialize('json', Message.objects.all(), fields=('text', 'username'))
+        message_user_list = message_user_list[:MESSAGE_HISTORY_NUMBER]
+        d = {'type': 'messages_history',
+             'room': self.main_room,
+             'message_user_list': message_user_list}
+        mess = json.dumps(d)
+        self.write_message(mess)
+
     def on_message(self, message):
         parsed = tornado.escape.json_decode(message)
         if parsed['msg_from'] == 'chat':
             self.chat_handler(parsed['msg'])
 
-    def custom_write_message(self, d):
+    def custom_write_message(self, d, room=None):
         mess = json.dumps(d)
-        all_connections = [conn for room in self.connections for conn in self.connections[room]]
-        for conn in all_connections:
-            conn.write_message(mess)
+        if room:
+            for conn in self.connections[room]:
+                conn.write_message(mess)
+        else:
+            all_connections = [c for r in self.connections for c in self.connections[r]]
+            for conn in all_connections:
+                conn.write_message(mess)
 
     def chat_handler(self, message):
         if message['type'] == 'text':
@@ -95,9 +109,9 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
                      'text': censor_message_text(message['text'])}
             except ObjectDoesNotExist:
                 d = {'type': 'error',
-                     'text': 'Такой комнаты не существует'}
+                     'text': 'Сообщение не может быть доставлено в текущую комнату'}
             mess = json.dumps(d)
-            self.custom_write_message(d)
+            self.write_message(d)
         elif message['type'] == 'disconnect':
             d = {'type': 'disconnect',
                  'room': message['room'],
@@ -126,9 +140,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             d = {'type': 'remove_user',
                  'user': self.user_name,
                  'room': message['room']}
-            mess = json.dumps(d)
-            for conn in self.connections[message['room']]:
-                conn.write_message(mess)
+            self.custom_write_message(d, message['room'])
         elif message['type'] == 'create_room' and self.user.user.has_perm('chat_app.add_room'):
             try:
                 created_room = Room(title=message['created_room'])

@@ -1,7 +1,6 @@
 import os
 
 PROJECT_PATH = os.path.dirname(os.path.abspath(__file__))
-# Django settings for tornadochat project.
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
@@ -15,7 +14,6 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3', # Add 'postgresql_psycopg2', 'mysql', 'sqlite3' or 'oracle'.
         'NAME': os.path.join(PROJECT_PATH, 'dev.sqlite'),                      # Or path to database file if using sqlite3.
-        # The following settings are not used with sqlite3:
         'USER': '',
         'PASSWORD': '',
         'HOST': '',                      # Empty for localhost through domain sockets or '127.0.0.1' for localhost through TCP.
@@ -25,8 +23,10 @@ DATABASES = {
 
 LOGIN_REDIRECT_URL = '/'
 MAX_ROOMS_COUNT = 5
+MESSAGE_HISTORY_NUMBER = 10
 TORNADO_HOST = 'localhost'
 TORNADO_PORT = '8080'
+
 TEMPLATE_CONTEXT_PROCESSORS = (
     'django.contrib.auth.context_processors.auth',
     'django.core.context_processors.debug',
@@ -41,9 +41,9 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 
 ALLOWED_HOSTS = []
 
-TIME_ZONE = 'America/Chicago'
+TIME_ZONE = 'Europe/Moscow W-SU'
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 
 SITE_ID = 1
 

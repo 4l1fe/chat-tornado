@@ -110,8 +110,10 @@ $(function() {
         var d = JSON.parse(event.data);
         var room_html = $('<div class="row">' +
                           '<a onclick="change_room(this)"></a>' +
-                          {% if perms.chat_app.change_room and  perms.chat_app.delete_room%}
+                          {% if perms.chat_app.delete_room %}
                               '<span class="glyphicon glyphicon-remove text-danger pull-right" onclick="delete_room(this)"></span>' +
+                          {% endif %}
+                          {% if perms.chat_app.change_room %}
                               '<span class="glyphicon glyphicon-edit text-success pull-right" onclick="edit_room_name(this)"></span>' +
                           {% endif %}
                           '</div>')
@@ -145,6 +147,13 @@ $(function() {
             var mess = get_time() + 'Пользователь ' + d['user'] + ' вошел в комнату <br>';
             var required_chat_div = '#chat_area #' + d['room'];
             $(required_chat_div).append(mess);
+        }
+        else if ('messages_history' == d['type']) {
+            for (var i=0;i<d['message_user_list'].length;i++]) {
+                var mess = get_time() + d[i][1] + ':' + d[i][0] + '<br>';
+                var required_chat_div = '#chat_area #' + d['room'];
+                $(required_chat_div).append(mess);
+            };
         }
         else if ('remove_user' == d['type']) {
             $('#users_area div').remove('#'+d['user']);
@@ -195,12 +204,12 @@ $(function() {
     $('#expand').on('click', function() { $('#whole_chat').slideToggle('slow'); });
     $('#txt_message').on('keypress', {}, send_message);
     $('#submit').on('click', send_message);
-{#    $('span').on('click', edit_room_name);#}
     {% if perms.chat_app.add_room %}
         $('#create').on('click', create_room);
     {% endif %}
 
 });
+
 </script>
 
 <div class="row" id="container">
