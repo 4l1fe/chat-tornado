@@ -149,11 +149,12 @@ $(function() {
             $(required_chat_div).append(mess);
         }
         else if ('messages_history' == d['type']) {
-            for (var i=0;i<d['message_user_list'].length;i++]) {
-                var mess = get_time() + d[i][1] + ':' + d[i][0] + '<br>';
-                var required_chat_div = '#chat_area #' + d['room'];
+            var data = JSON.parse(d['data']);
+            for (var i=0;i<data.length;i++) {
+                var mess = get_time() + data[i]['fields']['username'] + ':' + data[i]['fields']['text'] + '<br>';
+                var required_chat_div = '#chat_area #' + data[i]['fields']['room'];
                 $(required_chat_div).append(mess);
-            };
+            }
         }
         else if ('remove_user' == d['type']) {
             $('#users_area div').remove('#'+d['user']);
@@ -198,6 +199,9 @@ $(function() {
         }
         else if ('error' == d['type']) {
             alert(d['text']);
+        }
+        else if ('already_exist' == d['type']) {
+            $('#whole_chat>div').text(d['text']);
         }
     }
 
