@@ -31,6 +31,9 @@ class Room(models.Model):
             raise NotAllowedToDelete
         super(Room, self).delete(using)
 
+    def natural_key(self):
+        return self.title
+
 
 class Message(models.Model):
     text = models.TextField()

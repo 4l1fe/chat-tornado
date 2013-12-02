@@ -7,13 +7,13 @@ import tornado.escape
 import logging
 import re
 import json
-from tornadochat.settings import MESSAGE_HISTORY_NUMBER
+from tornadochat.settings import MESSAGE_HISTORY_NUMBER as MHN
 from copy import copy
 from django.db import IntegrityError
 from django.utils.timezone import now
 from django.contrib.sessions.models import Session
 from django.core.exceptions import ObjectDoesNotExist
-from django.core import serializers
+from django.core.serializers import serialize
 from .models import Room, Message, CustomUser, NotAllowedToChange, NotAllowedToDelete, ReachMaxRoomCount
 
 
@@ -53,34 +53,41 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         self.user_name = self.user.user.username
         self.room_names = Room.objects.order_by('pk').values_list('title', flat=True)  # Комнаты могут обновиться, проверяем.
         self.main_room = self.room_names[0].decode()
-        self.connections[self.main_room].append(self) # добавляю своё соединение в общий словарь.
+        if self.user_name in [c.user_name for r in self.connections for c in self.connections[r]]:
+            d = {'type': 'already_exist',
+                 'text': 'Чат с таким пользователем уже подключен'}
+            mess = json.dumps(d)
+            self.write_message(mess)
+            self.close()
+        else:
+            self.connections[self.main_room].append(self) # добавляю своё соединение в общий словарь.
 
-        d = {'type': 'initialization',
-             'rooms': [r.encode() for r in self.room_names]}
-        mess = json.dumps(d)
-        self.write_message(mess)  # шлю себе все комнаты
+            d = {'type': 'initialization',
+                 'rooms': [r.encode() for r in self.room_names]}
+            mess = json.dumps(d)
+            self.write_message(mess)  # шлю себе все комнаты
 
-        users_in_main_room = [conn.user_name for conn in self.connections[self.main_room]]
-        d = {'type': 'all_users',
-             'users': users_in_main_room}
-        mess = json.dumps(d)
-        self.write_message(mess)  # шлю всех польз-й из основной комнаты
+            users_in_main_room = [conn.user_name for conn in self.connections[self.main_room]]
+            d = {'type': 'all_users',
+                 'users': users_in_main_room}
+            mess = json.dumps(d)
+            self.write_message(mess)  # шлю всех польз-й из основной комнаты
 
-        for conn in self.connections[self.main_room]:
-            if conn.user_name != self.user_name:  # уведомление в чат всем , кроме себя
-                d = {'type': 'add_user',
-                     'room': self.main_room,
-                     'user': self.user_name}
-                mess = json.dumps(d)
-                conn.write_message(mess)
+            for conn in self.connections[self.main_room]:
+                if conn.user_name != self.user_name:  # уведомление в чат всем , кроме себя
+                    d = {'type': 'add_user',
+                         'room': self.main_room,
+                         'user': self.user_name}
+                    mess = json.dumps(d)
+                    conn.write_message(mess)
 
-        message_user_list = serializers.serialize('json', Message.objects.all(), fields=('text', 'username'))
-        message_user_list = message_user_list[:MESSAGE_HISTORY_NUMBER]
-        d = {'type': 'messages_history',
-             'room': self.main_room,
-             'message_user_list': message_user_list}
-        mess = json.dumps(d)
-        self.write_message(mess)
+            queryset = Message.objects.all()[:MHN]
+            serialized_data = serialize('json', queryset, fields=('text','username','room'),
+                                        use_natural_keys=True, ensure_ascii=False)
+            d = {'type': 'messages_history',
+                 'data': serialized_data}
+            mess = json.dumps(d)
+            self.write_message(mess)
 
     def on_message(self, message):
         parsed = tornado.escape.json_decode(message)
