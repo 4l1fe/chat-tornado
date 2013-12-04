@@ -41,6 +41,9 @@ class Message(models.Model):
     room = models.ForeignKey(Room)
     datetime = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    def __unicode__(self):
+        return u'{0}'.format(self.text)
+
 
 class NotAllowedToChange(Exception):
     """При попытке изменить запись основной комнаты"""
