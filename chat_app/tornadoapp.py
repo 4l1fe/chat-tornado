@@ -8,7 +8,10 @@ import logging
 import re
 import json
 from tornadochat.settings import MESSAGE_HISTORY_NUMBER as MHN
+from tornadochat.settings import SPAM_PAUSE as SP
+from tornadochat.settings import CHAT_LOG_NAME
 from copy import copy
+from datetime import datetime, timedelta
 from django.db import IntegrityError
 from django.utils.timezone import now
 from django.contrib.sessions.models import Session
@@ -17,7 +20,7 @@ from django.core.serializers import serialize
 from .models import Room, Message, CustomUser, NotAllowedToChange, NotAllowedToDelete, ReachMaxRoomCount
 
 
-logging_handler = logging.FileHandler(filename='chat_debug_log.txt', mode='a')
+logging_handler = logging.FileHandler(filename=CHAT_LOG_NAME, mode='a')
 logging_formatter = logging.Formatter(fmt='[%(levelname)-8s %(asctime)s] %(message)s', datefmt='%d-%m-%Y %H:%M:%S')
 logging_handler.setFormatter(logging_formatter)
 logger = logging.getLogger()
@@ -53,6 +56,7 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         self.user_name = self.user.user.username
         self.room_names = Room.objects.order_by('pk').values_list('title', flat=True)  # Комнаты могут обновиться, проверяем.
         self.main_room = self.room_names[0].decode()
+        self.last_mess_time = datetime.now() - timedelta(seconds=SP)  # чтобы сразу можно было писать
         if self.user_name in [c.user_name for r in self.connections for c in self.connections[r]]:
             d = {'type': 'already_exist',
                  'text': 'Чат с таким пользователем уже подключен'}
@@ -81,7 +85,8 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
                     mess = json.dumps(d)
                     conn.write_message(mess)
 
-            queryset = Message.objects.all()[:MHN]
+            queryset = Message.objects.order_by('-pk')[:MHN]
+            queryset = reversed(queryset)
             serialized_data = serialize('json', queryset, fields=('text','username','room'),
                                         use_natural_keys=True, ensure_ascii=False)
             d = {'type': 'messages_history',
@@ -95,30 +100,37 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             self.chat_handler(parsed['msg'])
 
     def custom_write_message(self, d, room=None):
-        mess = json.dumps(d)
-        if room:
+        #mess = json.dumps(d)  # обычный write_message сам сериализует в json
+        if d['type'] == 'error':
+            self.write_message(d)
+        elif room:
             for conn in self.connections[room]:
-                conn.write_message(mess)
+                conn.write_message(d)
         else:
             all_connections = [c for r in self.connections for c in self.connections[r]]
             for conn in all_connections:
-                conn.write_message(mess)
+                conn.write_message(d)
 
     def chat_handler(self, message):
         if message['type'] == 'text':
-            try:
-                room = Room.objects.get(title=message['room'])
-                message_obj = Message(room=room, username=self.user_name, text=message['text'])
-                message_obj.save()
-                d = {'type': 'text',
-                     'room': message['room'],
-                     'user': self.user_name,
-                     'text': censor_message_text(message['text'])}
-            except ObjectDoesNotExist:
+            if (datetime.now() - self.last_mess_time) <= timedelta(seconds=SP):
                 d = {'type': 'error',
-                     'text': 'Сообщение не может быть доставлено в текущую комнату'}
-            mess = json.dumps(d)
-            self.write_message(d)
+                     'text': 'Нельзя отправлять сообщения раньше чем через {} секунд'.format(SP)}
+                self.custom_write_message(d)
+            else:
+                try:
+                    room = Room.objects.get(title=message['room'])
+                    message_obj = Message(room=room, username=self.user_name, text=message['text'])
+                    message_obj.save()
+                    self.last_mess_time = datetime.now()
+                    d = {'type': 'text',
+                         'room': message['room'],
+                         'user': self.user_name,
+                         'text': censor_message_text(message['text'])}
+                except ObjectDoesNotExist:
+                    d = {'type': 'error',
+                         'text': 'Сообщение не может быть доставлено в текущую комнату'}
+                self.custom_write_message(d)
         elif message['type'] == 'disconnect':
             d = {'type': 'disconnect',
                  'room': message['room'],
@@ -205,8 +217,4 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
             except NotAllowedToDelete:
                 d = {'type': 'error',
                      'text': 'Нельзя удалить'}
-            if d['type'] == 'error':
-                mess = json.dumps(d)
-                self.write_message(mess)
-            else:
-                self.custom_write_message(d)
+            self.custom_write_message(d)

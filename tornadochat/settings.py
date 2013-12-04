@@ -1,3 +1,4 @@
+#coding:utf-8
 import os
 
 PROJECT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -24,8 +25,10 @@ DATABASES = {
 LOGIN_REDIRECT_URL = '/'
 MAX_ROOMS_COUNT = 5
 MESSAGE_HISTORY_NUMBER = 10
+SPAM_PAUSE = 5  # секунды
 TORNADO_HOST = 'localhost'
 TORNADO_PORT = '8080'
+CHAT_LOG_NAME = os.path.join(PROJECT_PATH, 'chat_debug_log.txt')
 
 TEMPLATE_CONTEXT_PROCESSORS = (
     'django.contrib.auth.context_processors.auth',
